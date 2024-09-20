@@ -1,0 +1,100 @@
+use rocket::State;
+use serde::{Deserialize, Serialize};
+use sqlx::{prelude::FromRow, Pool, Sqlite};
+
+use crate::{callback_result::Result, utils::ValueInt};
+
+#[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
+pub struct Species {
+    pub id: i32,
+    pub name: String
+}
+impl Species {
+    pub async fn create(db: &Pool<Sqlite>, name: String) -> Result {
+        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where name = $1;")
+            .bind(&name)
+            .fetch_one(db)
+            .await
+            .unwrap();
+
+        if result.0 > 0 {
+            return Result::Exists;
+        }
+
+        sqlx::query("insert into table species(name) values($1)")
+            .bind(&name)
+            .execute(db)
+            .await
+            .unwrap();
+
+        Result::Success
+    }
+    
+    pub async fn delete(db: &Pool<Sqlite>, id: i32) -> Result {
+        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where id = $1;")
+            .bind(&id)
+            .fetch_one(db)
+            .await
+            .unwrap();
+
+        if result.0 <= 0 {
+            return Result::DoesntExist;
+        }
+
+        sqlx::query("delete from species where id == $1;")
+            .bind(&id)
+            .execute(db)
+            .await
+            .unwrap();
+
+        Result::Success
+    }
+
+    pub async fn edit(db: &Pool<Sqlite>, id: i32, new_name: String) -> Result {
+        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where id = $1;")
+            .bind(&id)
+            .fetch_one(db)
+            .await
+            .unwrap();
+
+        if result.0 <= 0 {
+            return Result::DoesntExist;
+        }
+
+        sqlx::query("update species set name = $1 where id == $2;")
+            .bind(new_name)
+            .bind(&id)
+            .execute(db)
+            .await
+            .unwrap();
+
+        Result::Success
+    }
+
+    pub async fn fetch(db: &Pool<Sqlite>) -> Vec<Species> {
+        sqlx::query_as("select * from species;")
+            .fetch_all(db)
+            .await
+            .unwrap()
+    }
+}
+
+#[get("/<name>")]
+pub async fn create(db: &State<Pool<Sqlite>>, name: String) -> String {
+    Species::create(db.inner(), name).await.to_string()
+}
+
+#[get("/<id>")]
+pub async fn delete(db: &State<Pool<Sqlite>>, id: i32) -> String {
+    Species::delete(db.inner(), id).await.to_string()
+}
+
+#[get("/<id>/<new_name>")]
+pub async fn edit(db: &State<Pool<Sqlite>>, id: i32, new_name: String) -> String {
+    Species::edit(db.inner(), id, new_name).await.to_string()
+}
+
+#[get("/")]
+pub async fn fetch(db: &State<Pool<Sqlite>>) -> String {
+    serde_json::to_string(&Species::fetch(db.inner()).await).unwrap()
+}
