@@ -2,7 +2,7 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::{callback_result::Result, utils::ValueInt};
+use crate::callback_result::Result;
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct Dish {
@@ -13,19 +13,7 @@ pub struct Dish {
     pub species: i32,
 }
 impl Dish {
-    pub async fn create(db: &Pool<Sqlite>, name: String, variants: String, sizes: String, species: i32) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from dish where name = $1;")
-            .bind(&name)
-            .fetch_one(db)
-            .await
-            .unwrap();
-
-        if result.0 > 0 {
-            return Result::Exists;
-        }
-
-        // CREATE TABLE dish(id integer primary key autoincrement, name varchar, variants varchar, sizes varchar, species int);
-
+    pub async fn create(db: &Pool<Sqlite>, name: String, variants: String, sizes: String, species: i32) -> Result {        
         sqlx::query("insert into dish(name, variants, sizes, species) values($1, $2, $3, $4);")
             .bind(name)
             .bind(variants)
@@ -39,67 +27,51 @@ impl Dish {
     }
 
     pub async fn edit(db: &Pool<Sqlite>, id: i32, name: String, variants: String, sizes: String, species: i32) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from dish where name = $1;")
-            .bind(&name)
-            .fetch_one(db)
-            .await
-            .unwrap();
+        match Dish::fetch(db, id).await {
+            Some(_) => {
+                // check species?
 
-        if result.0 <= 0 {
-            return Result::DoesntExist;
+                sqlx::query("update dish set name = $1, variants = $2, sizes = $3, species = $4 where id = $5;")
+                    .bind(name)
+                    .bind(variants)
+                    .bind(sizes)
+                    .bind(species)
+                    .bind(id)
+                    .execute(db)
+                    .await
+                    .unwrap();
+
+                Result::Success
+            },
+            None => Result::DoesntExist
         }
-
-        sqlx::query("update dish set name = $1, variants = $2, sizes = $3, species = $4 where id = $5;")
-            .bind(name)
-            .bind(variants)
-            .bind(sizes)
-            .bind(species)
-            .bind(id)
-            .execute(db)
-            .await
-            .unwrap();
-
-        Result::Success
     }
 
     pub async fn delete(db: &Pool<Sqlite>, id: i32) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from dish where id = $1;")
-            .bind(&id)
-            .fetch_one(db)
-            .await
-            .unwrap();
-
-        if result.0 <= 0 {
-            return Result::DoesntExist;
+        match Dish::fetch(db, id).await {
+            Some(_) => {
+                sqlx::query("delete from dish where id = $1;")
+                    .bind(id)
+                    .execute(db)
+                    .await
+                    .unwrap();
+                Result::Success
+            },
+            None => Result::DoesntExist
         }
-
-        sqlx::query("delete from dish where id = $1;")
-            .bind(id)
-            .execute(db)
-            .await
-            .unwrap();
-
-        Result::Success
     }
 
     pub async fn fetch(db: &Pool<Sqlite>, id: i32) -> Option<Dish> {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from dish where id = $1;")
-            .bind(&id)
+        match sqlx::query_as("select * from dish where id = $1;")
+            .bind(id)
             .fetch_one(db)
-            .await
-            .unwrap();
-
-        if result.0 <= 0 {
-            return None;
+            .await {
+            Ok(d) => Some(d),
+            Err(e) => {
+                println!("dish.rs; fetch({id}); error : {e}");
+                None
+            }
         }
-
-        Some(
-            sqlx::query_as("select * from dish where id = $1;")
-                .bind(id)
-                .fetch_one(db)
-                .await
-                .unwrap()
-        )
     }
 
     pub async fn fetch_all(db: &Pool<Sqlite>) -> Vec<Dish> {
@@ -112,12 +84,12 @@ impl Dish {
 
 #[get("/<name>/<variants>/<sizes>/<species>")]
 pub async fn create(db: &State<Pool<Sqlite>>, name: String, variants: String, sizes: String, species: i32) -> String {
-    Dish::create(db.inner(), name, variants, sizes, species).await.to_string()
+    Dish::create(db.inner(), urlencoding::decode(&name).unwrap().to_string(), urlencoding::decode(&variants).unwrap().to_string(), urlencoding::decode(&sizes).unwrap().to_string(), species).await.to_string()
 }
 
 #[get("/<id>/<name>/<variants>/<sizes>/<species>")]
 pub async fn edit(db: &State<Pool<Sqlite>>, id: i32, name: String, variants: String, sizes: String, species: i32) -> String {
-    Dish::edit(db.inner(), id, name, variants, sizes, species).await.to_string()
+    Dish::edit(db.inner(), id, urlencoding::decode(&name).unwrap().to_string(), urlencoding::decode(&variants).unwrap().to_string(), urlencoding::decode(&sizes).unwrap().to_string(), species).await.to_string()
 }
 
 #[get("/<id>")]
