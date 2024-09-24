@@ -8135,11 +8135,11 @@ zucchini";
 
 // ad + noun
 
-pub fn get_time() -> i64 {
+pub fn get_time() -> i32 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time went backwards (???)")
-        .as_secs() as i64
+        .as_secs() as i32
 }
 
 pub fn generate_name(rng: &mut ThreadRng) -> String {

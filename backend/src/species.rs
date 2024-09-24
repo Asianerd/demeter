@@ -2,7 +2,7 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::{callback_result::Result, utils::ValueInt};
+use crate::callback_result::Result;
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct Species {
@@ -11,67 +11,80 @@ pub struct Species {
 }
 impl Species {
     pub async fn create(db: &Pool<Sqlite>, name: String) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where name = $1;")
-            .bind(&name)
-            .fetch_one(db)
-            .await
-            .unwrap();
+        match Species::fetch_by_name(db, &name).await {
+            Some(_) => {
+                Result::Exists
+            },
+            None => {
+                sqlx::query("insert into species(name) values($1)")
+                    .bind(&name)
+                    .execute(db)
+                    .await
+                    .unwrap();
 
-        if result.0 > 0 {
-            return Result::Exists;
+                Result::Success
+            }
         }
-
-        sqlx::query("insert into table species(name) values($1)")
-            .bind(&name)
-            .execute(db)
-            .await
-            .unwrap();
-
-        Result::Success
     }
     
     pub async fn delete(db: &Pool<Sqlite>, id: i32) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where id = $1;")
-            .bind(&id)
-            .fetch_one(db)
-            .await
-            .unwrap();
+        match Species::fetch(db, id).await {
+            Some(_) => {
+                sqlx::query("delete from species where id = $1;")
+                    .bind(&id)
+                    .execute(db)
+                    .await
+                    .unwrap();
 
-        if result.0 <= 0 {
-            return Result::DoesntExist;
+                Result::Success
+            },
+            None => Result::DoesntExist
         }
-
-        sqlx::query("delete from species where id == $1;")
-            .bind(&id)
-            .execute(db)
-            .await
-            .unwrap();
-
-        Result::Success
     }
 
     pub async fn edit(db: &Pool<Sqlite>, id: i32, new_name: String) -> Result {
-        let result = sqlx::query_as::<_, ValueInt>("select count(*) from species where id = $1;")
-            .bind(&id)
-            .fetch_one(db)
-            .await
-            .unwrap();
+        match Species::fetch(db, id).await {
+            Some(_) => {
+                sqlx::query("update species set name = $1 where id = $2;")
+                    .bind(new_name)
+                    .bind(&id)
+                    .execute(db)
+                    .await
+                    .unwrap();
 
-        if result.0 <= 0 {
-            return Result::DoesntExist;
+                Result::Success
+            },
+            None => Result::DoesntExist
         }
-
-        sqlx::query("update species set name = $1 where id == $2;")
-            .bind(new_name)
-            .bind(&id)
-            .execute(db)
-            .await
-            .unwrap();
-
-        Result::Success
     }
 
-    pub async fn fetch(db: &Pool<Sqlite>) -> Vec<Species> {
+    pub async fn fetch(db: &Pool<Sqlite>, id: i32) -> Option<Species> {
+        match sqlx::query_as("select * from species where id = $1;")
+            .bind(&id)
+            .fetch_one(db)
+            .await {
+            Ok(s) => Some(s),
+            Err(e) => {
+                println!("species.rs; fetch({id}); error: {e}");
+                None
+            }
+        }
+    }
+
+    pub async fn fetch_by_name(db: &Pool<Sqlite>, name: &String) -> Option<Species> {
+        match sqlx::query_as("select * from species where name = $1;")
+            .bind(name)
+            .fetch_one(db)
+            .await {
+            Ok(s) => Some(s),
+            Err(e) => {
+                println!("species.rs; fetch_by_name({name}); error: {e}");
+                None
+            }
+        }
+    }
+
+    pub async fn fetch_all(db: &Pool<Sqlite>) -> Vec<Species> {
         sqlx::query_as("select * from species;")
             .fetch_all(db)
             .await
@@ -95,6 +108,16 @@ pub async fn edit(db: &State<Pool<Sqlite>>, id: i32, new_name: String) -> String
 }
 
 #[get("/")]
-pub async fn fetch(db: &State<Pool<Sqlite>>) -> String {
-    serde_json::to_string(&Species::fetch(db.inner()).await).unwrap()
+pub async fn fetch_all(db: &State<Pool<Sqlite>>) -> String {
+    serde_json::to_string(&Species::fetch_all(db.inner()).await).unwrap()
+}
+
+#[get("/<id>")]
+pub async fn fetch(db: &State<Pool<Sqlite>>, id: i32) -> String {
+    serde_json::to_string(&Species::fetch(db.inner(), id).await).unwrap()
+}
+
+#[get("/<name>")]
+pub async fn fetch_by_name(db: &State<Pool<Sqlite>>, name: String) -> String {
+    serde_json::to_string(&Species::fetch_by_name(db.inner(), &name).await).unwrap()
 }
