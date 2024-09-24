@@ -7,6 +7,9 @@ pub enum Result {
     DoesntExist,
     Exists,
 
+    TableOccupied,
+    TableUnoccupied,
+
     VariantDoesntExist,
     SizeDoesntExist
 }
