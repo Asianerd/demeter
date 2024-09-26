@@ -30,6 +30,12 @@ impl Species {
     pub async fn delete(db: &Pool<Sqlite>, id: i32) -> Result {
         match Species::fetch(db, id).await {
             Some(_) => {
+                sqlx::query("update dish set species = -1 where species = $1;")
+                    .bind(&id)
+                    .execute(db)
+                    .await
+                    .unwrap();
+
                 sqlx::query("delete from species where id = $1;")
                     .bind(&id)
                     .execute(db)
