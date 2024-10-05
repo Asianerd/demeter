@@ -2,14 +2,26 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::callback_result::Result;
+use crate::{callback_result::Result, utils::decode_uri};
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct Dish {
     pub id: i32,
     pub name: String,
     pub variants: String,
+    // Vec<(u8, Vec<String>)>
+    // [
+    //       bool is to represent optionality
+    //          true -> required
+    //          false -> not required
+    //
+    //      (true, ['rare', 'medium rare', 'medium well', 'well done]),
+    //      (true, ['bbq sauce', 'normal sauce', 'spicy sauce']),
+    //      (false, ['no onions']),
+    //      (false, ['no fries'])
+    // ]
     pub sizes: String,
+    // Vec<String>
     pub species: i32,
 }
 impl Dish {
@@ -84,12 +96,12 @@ impl Dish {
 
 #[get("/<name>/<variants>/<sizes>/<species>")]
 pub async fn create(db: &State<Pool<Sqlite>>, name: String, variants: String, sizes: String, species: i32) -> String {
-    Dish::create(db.inner(), urlencoding::decode(&name).unwrap().to_string(), urlencoding::decode(&variants).unwrap().to_string(), urlencoding::decode(&sizes).unwrap().to_string(), species).await.to_string()
+    Dish::create(db.inner(), decode_uri(name), decode_uri(variants), decode_uri(sizes), species).await.to_string()
 }
 
 #[get("/<id>/<name>/<variants>/<sizes>/<species>")]
 pub async fn edit(db: &State<Pool<Sqlite>>, id: i32, name: String, variants: String, sizes: String, species: i32) -> String {
-    Dish::edit(db.inner(), id, urlencoding::decode(&name).unwrap().to_string(), urlencoding::decode(&variants).unwrap().to_string(), urlencoding::decode(&sizes).unwrap().to_string(), species).await.to_string()
+    Dish::edit(db.inner(), id, decode_uri(name), decode_uri(variants), decode_uri(sizes), species).await.to_string()
 }
 
 #[get("/<id>")]
