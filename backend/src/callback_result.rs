@@ -14,5 +14,5 @@ pub enum Result {
     SizeDoesntExist,
 
     NoPermission,
-    NoSession
+    NoTable
 }

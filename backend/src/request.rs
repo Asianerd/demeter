@@ -2,12 +2,12 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::{callback_result::Result, desk::Desk, session::Session, utils::ValueString, validation::Validation};
+use crate::{callback_result::Result, desk::Desk, utils::ValueString};
 
 #[derive(FromRow, Debug, Serialize, Deserialize)]
 pub struct Request {
     pub id: i32,
-    pub session: i32,
+    pub desk: String,
     pub dish: i32,
     pub variant: i32,
     pub size: i32,
@@ -46,8 +46,8 @@ impl Request {
         sizes.split(',').count() as i32 > size
     }
 
-    pub async fn create(db: &Pool<Sqlite>, session: i32, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> Result {
-        // CREATE TABLE request(id integer primary key autoincrement, session int, dish int, variant int, size int, comment varchar, state int);
+    pub async fn create(db: &Pool<Sqlite>, desk: String, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> Result {
+        // CREATE TABLE request(id integer primary key autoincrement, desk varchar, dish int, variant int, size int, comment varchar, state int);
         if !Request::check_variant(db, dish, variant).await {
             return Result::VariantDoesntExist;
         }
@@ -56,8 +56,8 @@ impl Request {
             return Result::SizeDoesntExist;
         }
 
-        sqlx::query("insert into request(session, dish, variant, size, comment, state) values($1, $2, $3, $4, $5, $6);")
-            .bind(session)
+        sqlx::query("insert into request(desk, dish, variant, size, comment, state) values($1, $2, $3, $4, $5, $6);")
+            .bind(desk)
             .bind(dish)
             .bind(variant)
             .bind(size)
@@ -131,51 +131,47 @@ impl Request {
     }
 }
 
-#[post("/<dish>/<variant>/<size>/<comment>/<state>", data="<session>")]
-pub async fn create(db: &State<Pool<Sqlite>>, session: String, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
+#[post("/<dish>/<variant>/<size>/<comment>/<state>", data="<table>")]
+pub async fn create(db: &State<Pool<Sqlite>>, table: String, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
     let db = db.inner();
-    let session = session.parse::<i32>().unwrap();
-    match Session::fetch_only_open(db, &session).await {
-        Some(s) => {
-            Request::create(&db, s.id, dish, variant, size, comment, state).await.to_string()
+    match Desk::fetch(db, &table).await {
+        Some(d) => {
+            Request::create(&db, d.name, dish, variant, size, comment, state).await.to_string()
         },
-        None => Result::NoSession.to_string()
+        None => Result::NoTable.to_string()
     }
 }
 
-#[post("/<request_id>/<variant>/<size>/<comment>/<state>", data="<session>")]
-pub async fn edit(db: &State<Pool<Sqlite>>, session: String, request_id: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
+#[post("/<request_id>/<variant>/<size>/<comment>/<state>", data="<table>")]
+pub async fn edit(db: &State<Pool<Sqlite>>, table: String, request_id: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
     let db = db.inner();
-    let session = session.parse::<i32>().unwrap();
-    match Session::fetch_only_open(db, &session).await {
+    match Desk::fetch(db, &table).await {
         Some(_) => {
             Request::edit(db, request_id, variant, size, comment, state).await.to_string()
         },
-        None => Result::NoSession.to_string()
+        None => Result::NoTable.to_string()
     }
 }
 
-#[post("/<request_id>", data="<session>")]
-pub async fn fetch(db: &State<Pool<Sqlite>>, session: String, request_id: i32) -> String {
+#[post("/<request_id>", data="<table>")]
+pub async fn fetch(db: &State<Pool<Sqlite>>, table: String, request_id: i32) -> String {
     let db = db.inner();
-    let session = session.parse::<i32>().unwrap();
-    match Session::fetch_only_open(db, &session).await {
+    match Desk::fetch(db, &table).await {
         Some(_) => {
             serde_json::to_string(&Request::fetch(db, request_id).await).unwrap()
         },
-        None => Result::NoSession.to_string()
+        None => Result::NoTable.to_string()
     }
 }
 
-#[post("/<request_id>", data="<session>")]
-pub async fn delete(db: &State<Pool<Sqlite>>, session: String, request_id: i32) -> String {
+#[post("/<request_id>", data="<table>")]
+pub async fn delete(db: &State<Pool<Sqlite>>, table: String, request_id: i32) -> String {
     let db = db.inner();
-    let session = session.parse::<i32>().unwrap();
-    match Session::fetch_only_open(db, &session).await {
+    match Desk::fetch(db, &table).await {
         Some(_) => {
             Request::delete(db, request_id).await.to_string()
         },
-        None => Result::NoSession.to_string()
+        None => Result::NoTable.to_string()
     }
 }
 

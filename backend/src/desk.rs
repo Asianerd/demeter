@@ -2,7 +2,7 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::{callback_result::Result, session::Session, utils::ValueInt, validation::Validation};
+use crate::{callback_result::Result, utils::ValueInt};
 
 #[derive(FromRow, Debug, Serialize, Deserialize)]
 pub struct Desk {
@@ -65,22 +65,6 @@ impl Desk {
             .await
             .unwrap()
     }
-
-
-    pub async fn fetch_open_session(db: &Pool<Sqlite>, desk: &String) -> Option<Session> {
-        match sqlx::query_as("select * from session where desk = $1 and state = 1;")
-            .bind(&desk)
-            .fetch_one(db)
-            .await {
-            Ok(s) => {
-                Some(s)
-            },
-            Err(e) => {
-                println!("desk.rs; fetch_session({desk}); error: {e}");
-                None
-            }
-        }
-    }
 }
 
 #[get("/<name>/<capacity>")]
@@ -101,15 +85,4 @@ pub async fn fetch(db: &State<Pool<Sqlite>>, name: String) -> String {
 #[get("/")]
 pub async fn fetch_all(db: &State<Pool<Sqlite>>) -> String {
     serde_json::to_string(&Desk::fetch_all(db.inner()).await).unwrap()
-}
-
-// table permissions
-#[post("/", data="<id>")]
-pub async fn fetch_session(db: &State<Pool<Sqlite>>, id: String) -> String {
-    // fetch session attributed to this table
-    let db = db.inner();
-    match Validation::table_hash(db, id).await {
-        Some(name) => serde_json::to_string(&Desk::fetch_open_session(db, &name).await).unwrap().to_string(),
-        None => Result::NoSession.to_string()
-    }
 }

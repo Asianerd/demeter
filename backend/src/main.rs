@@ -10,7 +10,6 @@ mod desk;
 mod dish;
 mod species;
 
-mod session;
 mod request;
 
 #[get("/")]
@@ -41,24 +40,11 @@ async fn rocket() -> _ {
         .mount("/dish/delete", routes![dish::delete])
         .mount("/dish/edit", routes![dish::edit])
 
-        .mount("/session/start", routes![session::start])
-        .mount("/session/end", routes![session::end])
-        .mount("/session/end_by_desk", routes![session::end_by_desk])
-        .mount("/session/change_desk", routes![session::change_desk])
-        .mount("/session/change_desk_by_desk", routes![session::change_desk_by_desk])
-        .mount("/session/fetch_all", routes![session::fetch_all])
-        .mount("/session/fetch_open", routes![session::fetch_open])
-
         // table permissions
-        .mount("/table/fetch_session", routes![desk::fetch_session])
-
         .mount("/request/create", routes![request::create])
         .mount("/request/delete", routes![request::delete])
         .mount("/request/edit", routes![request::edit])
         .mount("/request/fetch", routes![request::fetch])
-
-        .mount("/session/fetch", routes![session::fetch])
-        .mount("/session/fetch_requests", routes![session::fetch_requests])
 
         // no permission
         .mount("/species/fetch", routes![species::fetch])
