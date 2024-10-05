@@ -2,7 +2,7 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::{callback_result::Result, utils::ValueString};
+use crate::{callback_result::Result, desk::Desk, session::Session, utils::ValueString, validation::Validation};
 
 #[derive(FromRow, Debug, Serialize, Deserialize)]
 pub struct Request {
@@ -131,24 +131,52 @@ impl Request {
     }
 }
 
-#[get("/<session>/<dish>/<variant>/<size>/<comment>/<state>")]
-pub async fn create(db: &State<Pool<Sqlite>>, session: i32, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
-    Request::create(&db, session, dish, variant, size, comment, state).await.to_string()
+#[post("/<dish>/<variant>/<size>/<comment>/<state>", data="<session>")]
+pub async fn create(db: &State<Pool<Sqlite>>, session: String, dish: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
+    let db = db.inner();
+    let session = session.parse::<i32>().unwrap();
+    match Session::fetch_only_open(db, &session).await {
+        Some(s) => {
+            Request::create(&db, s.id, dish, variant, size, comment, state).await.to_string()
+        },
+        None => Result::NoSession.to_string()
+    }
 }
 
-#[get("/<request_id>/<variant>/<size>/<comment>/<state>")]
-pub async fn edit(db: &State<Pool<Sqlite>>, request_id: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
-    Request::edit(db.inner(), request_id, variant, size, comment, state).await.to_string()
+#[post("/<request_id>/<variant>/<size>/<comment>/<state>", data="<session>")]
+pub async fn edit(db: &State<Pool<Sqlite>>, session: String, request_id: i32, variant: i32, size: i32, comment: String, state: i32) -> String {
+    let db = db.inner();
+    let session = session.parse::<i32>().unwrap();
+    match Session::fetch_only_open(db, &session).await {
+        Some(_) => {
+            Request::edit(db, request_id, variant, size, comment, state).await.to_string()
+        },
+        None => Result::NoSession.to_string()
+    }
 }
 
-#[get("/<request_id>")]
-pub async fn fetch(db: &State<Pool<Sqlite>>, request_id: i32) -> String {
-    serde_json::to_string(&Request::fetch(db.inner(), request_id).await).unwrap()
+#[post("/<request_id>", data="<session>")]
+pub async fn fetch(db: &State<Pool<Sqlite>>, session: String, request_id: i32) -> String {
+    let db = db.inner();
+    let session = session.parse::<i32>().unwrap();
+    match Session::fetch_only_open(db, &session).await {
+        Some(_) => {
+            serde_json::to_string(&Request::fetch(db, request_id).await).unwrap()
+        },
+        None => Result::NoSession.to_string()
+    }
 }
 
-#[get("/<request_id>")]
-pub async fn delete(db: &State<Pool<Sqlite>>, request_id: i32) -> String {
-    Request::delete(db.inner(), request_id).await.to_string()
+#[post("/<request_id>", data="<session>")]
+pub async fn delete(db: &State<Pool<Sqlite>>, session: String, request_id: i32) -> String {
+    let db = db.inner();
+    let session = session.parse::<i32>().unwrap();
+    match Session::fetch_only_open(db, &session).await {
+        Some(_) => {
+            Request::delete(db, request_id).await.to_string()
+        },
+        None => Result::NoSession.to_string()
+    }
 }
 
 

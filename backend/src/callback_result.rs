@@ -11,5 +11,8 @@ pub enum Result {
     TableUnoccupied,
 
     VariantDoesntExist,
-    SizeDoesntExist
+    SizeDoesntExist,
+
+    NoPermission,
+    NoSession
 }

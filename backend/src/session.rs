@@ -6,7 +6,7 @@ use crate::{callback_result::Result, desk::Desk, request::Request, utils};
 
 #[derive(FromRow, Serialize, Deserialize, Debug)]
 pub struct Session {
-    pub id: i32, 
+    pub id: i32,
     pub start: i32,
     pub end: i32,
 
@@ -17,7 +17,7 @@ pub struct Session {
 }
 impl Session {
     pub async fn create(db: &Pool<Sqlite>, start: i32, end: i32, desk: String, state: i32) -> Result {
-        // TODO : check for desk existance
+        // TODO : check for desk existence
 
         sqlx::query("insert into session(start, end, desk, state) values($1, $2, $3, $4);")
             .bind(start)
@@ -63,7 +63,7 @@ impl Session {
         }
     }
 
-    pub async fn fetch_only_open(db: &Pool<Sqlite>, session: i32) -> Option<Session> {
+    pub async fn fetch_only_open(db: &Pool<Sqlite>, session: &i32) -> Option<Session> {
         match sqlx::query_as::<_, Session>("select * from session where id = $1 and state = 1;")
         .bind(session)
         .fetch_one(db)
@@ -132,7 +132,7 @@ pub async fn start(db: &State<Pool<Sqlite>>, desk: String) -> String {
 #[get("/<session>")]
 pub async fn end(db: &State<Pool<Sqlite>>, session: i32) -> String {
     let db = db.inner();
-    match Session::fetch_only_open(db, session).await {
+    match Session::fetch_only_open(db, &session).await {
         Some(s) => {
             Session::edit(db, s.id, s.start, utils::get_time(), s.desk, 0).await.to_string()
         },
@@ -162,7 +162,7 @@ pub async fn end_by_desk(db: &State<Pool<Sqlite>>, desk: String) -> String {
 pub async fn change_desk(db: &State<Pool<Sqlite>>, session: i32, to: String) -> String {
     let db = db.inner();
     let to = urlencoding::decode(&to).unwrap().to_string();
-    match Session::fetch_only_open(db, session).await {
+    match Session::fetch_only_open(db, &session).await {
         Some(s) => {
             Session::edit(db, s.id, s.start, s.end, to, s.state).await;
 
