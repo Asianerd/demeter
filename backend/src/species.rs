@@ -2,7 +2,7 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, Pool, Sqlite};
 
-use crate::callback_result::Result;
+use crate::{callback_result::Result, utils::decode_uri};
 
 #[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct Species {
@@ -100,7 +100,7 @@ impl Species {
 
 #[get("/<name>")]
 pub async fn create(db: &State<Pool<Sqlite>>, name: String) -> String {
-    Species::create(db.inner(), name).await.to_string()
+    Species::create(db.inner(), decode_uri(name)).await.to_string()
 }
 
 #[get("/<id>")]
@@ -110,7 +110,7 @@ pub async fn delete(db: &State<Pool<Sqlite>>, id: i32) -> String {
 
 #[get("/<id>/<new_name>")]
 pub async fn edit(db: &State<Pool<Sqlite>>, id: i32, new_name: String) -> String {
-    Species::edit(db.inner(), id, new_name).await.to_string()
+    Species::edit(db.inner(), id, decode_uri(new_name)).await.to_string()
 }
 
 #[get("/")]
@@ -125,5 +125,5 @@ pub async fn fetch(db: &State<Pool<Sqlite>>, id: i32) -> String {
 
 #[get("/<name>")]
 pub async fn fetch_by_name(db: &State<Pool<Sqlite>>, name: String) -> String {
-    serde_json::to_string(&Species::fetch_by_name(db.inner(), &name).await).unwrap()
+    serde_json::to_string(&Species::fetch_by_name(db.inner(), &decode_uri(name)).await).unwrap()
 }
